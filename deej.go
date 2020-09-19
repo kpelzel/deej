@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"time"
 
 	"go.uber.org/zap"
 
@@ -141,6 +142,9 @@ func (d *Deej) run() {
 	// watch the config file for changes
 	go d.config.WatchConfigFileChanges()
 
+	// listen for system volume changes
+	go d.listenForChanges()
+
 	// connect to the arduino for the first time
 	go func() {
 		if err := d.serial.Start(); err != nil {
@@ -205,4 +209,27 @@ func (d *Deej) stop() error {
 	d.logger.Sync()
 
 	return nil
+}
+
+func (d *Deej) listenForChanges() {
+	d.logger.Debug("listening for changes")
+	for k, v := range d.sessions.m {
+		d.logger.Debug("key: ", k, " value: ", v)
+	}
+	master := d.sessions.m["master"][0]
+	var volume, prevVolume float32
+
+	ticker := time.NewTicker(20 * time.Millisecond)
+
+	for {
+		select {
+		case <-ticker.C:
+			volume = master.GetVolume()
+			if volume != prevVolume {
+				d.logger.Debug("new volume: ", volume)
+			}
+			prevVolume = volume
+
+		}
+	}
 }
